@@ -17,3 +17,36 @@ body {
   background: #f8fafc;
   color: #0f172a;
 }
+
+:root{
+  --bg: #f8fafc;
+  --surface: #ffffff;
+  --muted: #94a3b8;
+  --accent: #0f172a;
+  --success: #10b981;
+  --danger: #ef4444;
+  --card-shadow: 0 6px 18px rgba(15,23,42,0.06);
+}
+
+/* Board horizontal scroll on small screens */
+.board-scroll{
+  -webkit-overflow-scrolling: touch;
+  overflow-x: auto;
+}
+
+.task-card {
+  box-shadow: var(--card-shadow);
+}
+
+.task-desc-truncate{
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.sticky-header{
+  position: sticky;
+  top: 0;
+  background: transparent;
+}

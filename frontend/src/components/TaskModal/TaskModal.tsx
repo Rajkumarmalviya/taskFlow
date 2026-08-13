@@ -64,6 +64,14 @@ export default function TaskModal({
     setError(null);
   }, [task, defaultColumnId]);
 
+  useEffect(() => {
+    const el = document.getElementById("task-title");
+    if (el) {
+      // attempt autofocus for accessibility
+      (el as HTMLInputElement).focus();
+    }
+  }, []);
+
   async function handleSubmit(
     event: React.FormEvent<HTMLFormElement>
   ) {
@@ -97,6 +105,8 @@ export default function TaskModal({
 
   return (
     <div
+      role="dialog"
+      aria-modal="true"
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) {

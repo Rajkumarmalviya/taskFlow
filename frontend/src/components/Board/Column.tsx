@@ -11,6 +11,7 @@ interface ColumnProps {
     id: number;
     name: string;
   }[];
+  onViewDetail: (task: Task) => void;
   onEdit: (task: Task) => void;
   onDelete: (taskId: number) => void;
   onMove: (
@@ -22,13 +23,14 @@ interface ColumnProps {
 export default function Column({
   column,
   columns,
+  onViewDetail,
   onEdit,
   onDelete,
   onMove
 }: ColumnProps) {
   return (
-    <section className="min-w-0 rounded-2xl bg-slate-100 p-4">
-      <div className="mb-4 flex items-center justify-between">
+    <section className="min-w-[18rem] rounded-2xl bg-slate-100 p-4">
+      <div className="mb-4 flex items-center justify-between sticky-header">
         <h2 className="font-bold text-slate-800">
           {column.name}
         </h2>
@@ -40,15 +42,18 @@ export default function Column({
 
       <div className="space-y-3">
         {column.tasks.length === 0 ? (
-          <p className="py-6 text-center text-sm text-slate-400">
-            No tasks
-          </p>
+          <div className="rounded-lg border border-dashed border-slate-200 bg-white/60 py-6 text-center">
+            <p className="text-sm text-slate-400">
+              No tasks
+            </p>
+          </div>
         ) : (
           column.tasks.map((task) => (
             <TaskCard
               key={task.id}
               task={task}
               columns={columns}
+              onViewDetail={onViewDetail}
               onEdit={onEdit}
               onDelete={onDelete}
               onMove={onMove}

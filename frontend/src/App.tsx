@@ -2,6 +2,7 @@ import { useState } from "react";
 
 import Board from "./components/Board/Board";
 import BoardToolbar from "./components/BoardToolBar";
+import TaskDetailModal from "./components/TaskDetailModal/TaskDetailModal";
 import TaskModal from "./components/TaskModal/TaskModal";
 
 import { useBoard } from "./hooks/useBoard";
@@ -53,6 +54,9 @@ function App() {
     useState(false);
 
   const [editingTask, setEditingTask] =
+    useState<Task | null>(null);
+
+  const [detailTask, setDetailTask] =
     useState<Task | null>(null);
 
   // -----------------------------------------
@@ -261,12 +265,10 @@ function App() {
         <BoardToolbar
           boardName={"TaskFlow"}
           priority={priority}
-          search={search}
           isFiltering={isFiltering}
           onPriorityChange={
             changePriority
           }
-          onSearchChange={setSearch}
           onSearch={handleSearch}
           onCreate={openCreateModal}
         />
@@ -294,6 +296,7 @@ function App() {
         {visibleBoard && (
           <Board
             board={visibleBoard}
+            onViewDetail={(task) => setDetailTask(task)}
             onEdit={openEditModal}
             onDelete={handleDeleteTask}
             onMove={handleMoveTask}
@@ -310,6 +313,40 @@ function App() {
             }
             onClose={closeModal}
             onSave={handleSaveTask}
+          />
+        )}
+
+        {/* Task detail modal */}
+        {detailTask && (
+          <TaskDetailModal
+            task={detailTask}
+            columnName={
+              board.columns.find(
+                (col) => col.id === detailTask.column_id
+              )?.name ?? ""
+            }
+            onClose={() => setDetailTask(null)}
+            onEdit={(task) => {
+              setDetailTask(null);
+              openEditModal(task);
+            }}
+          />
+        )}
+
+        {/* Task detail modal */}
+        {detailTask && (
+          <TaskDetailModal
+            task={detailTask}
+            columnName={
+              board.columns.find(
+                (col) => col.id === detailTask.column_id
+              )?.name ?? ""
+            }
+            onClose={() => setDetailTask(null)}
+            onEdit={(task) => {
+              setDetailTask(null);
+              openEditModal(task);
+            }}
           />
         )}
       </div>

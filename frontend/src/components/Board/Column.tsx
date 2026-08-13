@@ -1,7 +1,7 @@
 import type {
   BoardColumn,
   Task
-} from "../types/task";
+} from "../../types/task";
 
 import TaskCard from "./TaskCard";
 

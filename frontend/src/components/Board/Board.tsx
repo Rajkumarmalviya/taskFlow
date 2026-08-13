@@ -1,7 +1,7 @@
 import type {
   Board as BoardType,
   Task
-} from "../types/task";
+} from "../../types/task";
 
 import Column from "./Column";
 

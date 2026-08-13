@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import type {
   Priority,
   Task
-} from "../types/task";
+} from "../../types/task";
 
 interface ColumnOption {
   id: number;

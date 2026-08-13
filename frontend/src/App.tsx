@@ -1,240 +1,108 @@
-import {
-  useEffect,
-  useState
-} from "react";
+import { useState } from "react";
 
-import Board from "./components/Board";
-import PriorityFilter from "./components/PriorityFilter";
-import TaskModal from "./components/TaskModal";
+import Board from "./components/Board/Board";
+import BoardToolbar from "./components/BoardToolBar";
+import TaskModal from "./components/TaskModal/TaskModal";
 
-import {
-  createTask,
-  deleteTask,
-  getBoard,
-  moveTask,
-  updateTask,
-  getTasksByPriority,
-  getFilteredTasks
-} from "./services/api";
+import { useBoard } from "./hooks/useBoard";
+import { useTasks } from "./hooks/useTasks";
 
 import type {
-  Board as BoardType,
   Priority,
-  Task
+  Task,
 } from "./types/task";
 
 function App() {
-  const [search, setSearch] =
-  useState("");
-  const [board, setBoard] =
-    useState<BoardType | null>(null);
+  const BOARD_ID = 1;
 
-  const [loading, setLoading] =
-    useState(true);
+  // -----------------------------------------
+  // Board/server state
+  // -----------------------------------------
 
-  const [error, setError] =
-    useState<string | null>(null);
+  const {
+    board,
+    isLoading,
+    error: boardError,
+    setError: setBoardError,
+    createTask,
+    updateTask,
+    deleteTask,
+    moveTask,
+  } = useBoard(BOARD_ID);
 
-  const [priority, setPriority] =
-    useState<Priority | "ALL">("ALL");
+  // -----------------------------------------
+  // Filtering/search state
+  // -----------------------------------------
 
-  const [editingTask, setEditingTask] =
-    useState<Task | null>(null);
+  const {
+    priority,
+    search,
+    isFiltering,
+    visibleBoard,
+    changePriority,
+    searchTasks,
+    setSearch,
+    error: taskError,
+  } = useTasks(board);
+
+  // -----------------------------------------
+  // Modal/UI state
+  // -----------------------------------------
 
   const [isCreating, setIsCreating] =
     useState(false);
 
-    const [filteredTasks, setFilteredTasks] =
-  useState<Task[] | null>(null);
+  const [editingTask, setEditingTask] =
+    useState<Task | null>(null);
 
+  // -----------------------------------------
+  // Derived error
+  // -----------------------------------------
 
-  async function loadBoard() {
-  try {
-    setLoading(true);
-    setError(null);
+  const error =
+    boardError || taskError;
 
-    const data = await getBoard(1);
+  // -----------------------------------------
+  // Loading state
+  // -----------------------------------------
 
-    setBoard(data);
-    setFilteredTasks(null);
-    setPriority("ALL");
-  } catch (error) {
-    setError("Failed to load board");
-    
-  } finally {
-    setLoading(false);
-  }
-}
-
-  useEffect(() => {
-    loadBoard();
-  }, []);
-
-  async function handleDelete(
-  taskId: number
-) {
-  const confirmed = window.confirm(
-    "Are you sure you want to delete this task?"
-  );
-
-  if (!confirmed) {
-    return;
-  }
-
-  try {
-    setError(null);
-
-    await deleteTask(taskId);
-
-    await loadBoard();
-  } catch (error) {
-    setError(
-      error instanceof Error
-        ? error.message
-        : "Failed to delete task"
-    );
-  }
-}
-
-async function handlePriorityChange(
-  value: Priority | "ALL"
-) {
-  try {
-    setError(null);
-    setPriority(value);
-
-    if (value === "ALL") {
-      setFilteredTasks(null);
-      return;
-    }
-
-    const tasks =
-      await getTasksByPriority(
-        board!.id,
-        value
-      );
-
-    setFilteredTasks(tasks);
-  } catch (error) {
-    setError(
-      error instanceof Error
-        ? error.message
-        : "Failed to filter tasks"
-    );
-  }
-}
-  async function handleMove(
-    taskId: number,
-    columnId: number
-  ) {
-    try {
-      setError(null);
-
-      await moveTask(
-        taskId,
-        columnId
-      );
-
-      await loadBoard();
-    } catch (error) {
-      setError(
-        error instanceof Error
-          ? error.message
-          : "Failed to move task"
-      );
-    }
-  }
-
-  async function handleSearch() {
-  try {
-    setError(null);
-
-    const tasks =
-      await getFilteredTasks(
-        board!.id,
-        {
-          priority:
-            priority === "ALL"
-              ? undefined
-              : priority,
-          search: search.trim() || undefined
-        }
-      );
-
-    setFilteredTasks(tasks);
-  } catch (error) {
-    setError(
-      error instanceof Error
-        ? error.message
-        : "Failed to search tasks"
-    );
-  }
-}
-  async function handleSaveTask(data: {
-    title: string;
-    description: string;
-    priority: Priority;
-    columnId: number;
-  }) {
-    if (editingTask) {
-      await updateTask(
-        editingTask.id,
-        {
-          title: data.title,
-          description: data.description,
-          priority: data.priority
-        }
-      );
-
-      setEditingTask(null);
-    } else {
-      await createTask({
-        columnId: data.columnId,
-        title: data.title,
-        description: data.description,
-        priority: data.priority
-      });
-
-      setIsCreating(false);
-    }
-
-    await loadBoard();
-  }
-
-  function openCreateModal() {
-    setError(null);
-    setIsCreating(true);
-  }
-
-  function openEditModal(task: Task) {
-    setError(null);
-    setEditingTask(task);
-  }
-
-  function closeModal() {
-    setIsCreating(false);
-    setEditingTask(null);
-  }
-
-  if (loading) {
+  if (isLoading) {
     return (
-      <main className="flex min-h-screen items-center justify-center">
-        <p className="text-slate-500">
-          Loading TaskFlow...
-        </p>
+      <main className="flex min-h-screen items-center justify-center bg-slate-50">
+        <div className="text-center">
+          <div className="mx-auto mb-3 h-8 w-8 animate-spin rounded-full border-4 border-slate-200 border-t-slate-900" />
+
+          <p className="text-sm text-slate-500">
+            Loading TaskFlow...
+          </p>
+        </div>
       </main>
     );
   }
 
-  if (error && !board) {
+  // -----------------------------------------
+  // Board loading failure
+  // -----------------------------------------
+
+  if (!board) {
     return (
-      <main className="flex min-h-screen items-center justify-center p-6">
-        <div className="rounded-xl border border-red-200 bg-red-50 p-6 text-red-700">
-          <p>{error}</p>
+      <main className="flex min-h-screen items-center justify-center bg-slate-50 p-6">
+        <div className="w-full max-w-md rounded-2xl border border-red-200 bg-white p-6 text-center shadow-sm">
+          <h1 className="text-lg font-semibold text-slate-900">
+            Unable to load TaskFlow
+          </h1>
+
+          <p className="mt-2 text-sm text-red-600">
+            {error ??
+              "Something went wrong while loading the board."}
+          </p>
 
           <button
-            onClick={loadBoard}
-            className="mt-4 rounded-lg bg-red-600 px-4 py-2 text-white"
+            type="button"
+            onClick={() => {
+              window.location.reload();
+            }}
+            className="mt-5 rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700"
           >
             Try again
           </button>
@@ -243,101 +111,208 @@ async function handlePriorityChange(
     );
   }
 
-  if (!board) {
-    return null;
+  // -----------------------------------------
+  // Modal handlers
+  // -----------------------------------------
+
+  function openCreateModal() {
+    setBoardError(null);
+    setIsCreating(true);
   }
 
-  const filteredBoard =
-  filteredTasks === null
-    ? board
-    : {
-        ...board,
-        columns: board.columns.map(
-          (column) => ({
-            ...column,
-            tasks: filteredTasks.filter(
-              (task) =>
-                task.column_id === column.id
-            )
-          })
-        )
-      };
+  function openEditModal(task: Task) {
+    setBoardError(null);
+    setEditingTask(task);
+  }
+
+  function closeModal() {
+    setIsCreating(false);
+    setEditingTask(null);
+  }
+
+  // -----------------------------------------
+  // Save task
+  // -----------------------------------------
+
+  async function handleSaveTask(data: {
+    title: string;
+    description: string;
+    priority: Priority;
+    columnId: number;
+  }) {
+    try {
+      setBoardError(null);
+
+      if (editingTask) {
+        await updateTask(
+          editingTask.id,
+          {
+            title: data.title,
+            description: data.description,
+            priority: data.priority,
+          }
+        );
+      } else {
+        await createTask({
+          columnId: data.columnId,
+          title: data.title,
+          description: data.description,
+          priority: data.priority,
+        });
+      }
+
+      closeModal();
+    } catch (error) {
+      setBoardError(
+        error instanceof Error
+          ? error.message
+          : "Failed to save task"
+      );
+
+      throw error;
+    }
+  }
+
+  // -----------------------------------------
+  // Delete task
+  // -----------------------------------------
+
+  async function handleDeleteTask(
+    taskId: number
+  ) {
+    const confirmed = window.confirm(
+      "Are you sure you want to delete this task?"
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      setBoardError(null);
+
+      await deleteTask(taskId);
+    } catch (error) {
+      setBoardError(
+        error instanceof Error
+          ? error.message
+          : "Failed to delete task"
+      );
+    }
+  }
+
+  // -----------------------------------------
+  // Move task
+  // -----------------------------------------
+
+  async function handleMoveTask(
+    taskId: number,
+    columnId: number
+  ) {
+    try {
+      setBoardError(null);
+
+      await moveTask(
+        taskId,
+        columnId
+      );
+    } catch (error) {
+      setBoardError(
+        error instanceof Error
+          ? error.message
+          : "Failed to move task"
+      );
+    }
+  }
+
+  // -----------------------------------------
+  // Search
+  // -----------------------------------------
+
+  async function handleSearch(
+    value: string
+  ) {
+    await searchTasks(value);
+  }
+
+  // -----------------------------------------
+  // Column options
+  // -----------------------------------------
 
   const columns = board.columns.map(
-    ({ id, name }) => ({
-      id,
-      name
+    (column) => ({
+      id: column.id,
+      name: column.name,
     })
   );
 
-  const firstColumnId =
+  const defaultColumnId =
     board.columns[0]?.id ?? 1;
 
+  // -----------------------------------------
+  // UI
+  // -----------------------------------------
+
   return (
-    <main className="min-h-screen p-6 md:p-8">
+    <main className="min-h-screen bg-slate-50 p-6 md:p-8">
       <div className="mx-auto max-w-7xl">
-        <header className="mb-8 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-          <div>
-            <h1 className="text-3xl font-bold">
-              {board.name}
-            </h1>
 
-            <p className="mt-1 text-slate-500">
-              Simple task management for small teams.
+        {/* Toolbar */}
+        <BoardToolbar
+          boardName={"TaskFlow"}
+          priority={priority}
+          search={search}
+          isFiltering={isFiltering}
+          onPriorityChange={
+            changePriority
+          }
+          onSearchChange={setSearch}
+          onSearch={handleSearch}
+          onCreate={openCreateModal}
+        />
+
+        {/* Global error */}
+        {error && (
+          <div className="mb-5 flex items-center justify-between gap-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3">
+            <p className="text-sm text-red-700">
+              {error}
             </p>
-          </div>
-
-          <div className="flex flex-wrap gap-3">
-            <input
-  value={search}
-  onChange={(event) =>
-    setSearch(event.target.value)
-  }
-  onKeyDown={(event) => {
-    if (event.key === "Enter") {
-      handleSearch();
-    }
-  }}
-  placeholder="Search tasks..."
-  className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
-/>
-           <PriorityFilter
-  value={priority}
-  onChange={handlePriorityChange}
-/>
 
             <button
-              onClick={openCreateModal}
-              className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700"
+              type="button"
+              onClick={() => {
+                setBoardError(null);
+              }}
+              className="text-sm font-medium text-red-700 hover:text-red-900"
             >
-              + New task
+              Dismiss
             </button>
-          </div>
-        </header>
-
-        {error && (
-          <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-            {error}
           </div>
         )}
 
-        <Board
-          board={filteredBoard}
-          onEdit={openEditModal}
-          onDelete={handleDelete}
-          onMove={handleMove}
-        />
-      </div>
+        {/* Board */}
+        {visibleBoard && (
+          <Board
+            board={visibleBoard}
+            onEdit={openEditModal}
+            onDelete={handleDeleteTask}
+            onMove={handleMoveTask}
+          />
+        )}
 
-      {(isCreating || editingTask) && (
-        <TaskModal
-          task={editingTask}
-          columns={columns}
-          defaultColumnId={firstColumnId}
-          onClose={closeModal}
-          onSave={handleSaveTask}
-        />
-      )}
+        {/* Create/Edit modal */}
+        {(isCreating || editingTask) && (
+          <TaskModal
+            task={editingTask}
+            columns={columns}
+            defaultColumnId={
+              defaultColumnId
+            }
+            onClose={closeModal}
+            onSave={handleSaveTask}
+          />
+        )}
+      </div>
     </main>
   );
 }

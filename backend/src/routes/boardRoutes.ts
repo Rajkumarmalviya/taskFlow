@@ -2,19 +2,15 @@ import { Router } from "express";
 
 import {
   getBoardController,
-  getBoardTasksController
+  getBoardTasksController,
 } from "../controllers/boardController.js";
 
 const router = Router();
 
-router.get(
-  "/:boardId",
-  getBoardController
-);
+// GET /api/boards/:boardId          → full board with columns + tasks
+router.get("/:boardId", getBoardController);
 
-router.get(
-  "/:boardId/tasks",
-  getBoardTasksController
-);
+// GET /api/boards/:boardId/tasks    → flat task list, supports ?priority= and ?search=
+router.get("/:boardId/tasks", getBoardTasksController);
 
 export default router;

@@ -2,38 +2,37 @@ import Database from "better-sqlite3";
 import fs from "fs";
 import path from "path";
 
-const dataDirectory = path.join(process.cwd(), "data");
+import { config } from "../config/index.js";
 
-if (!fs.existsSync(dataDirectory)) {
-  fs.mkdirSync(dataDirectory, { recursive: true });
+// ─── Ensure data directory exists ────────────────────────────────────────────
+
+if (!fs.existsSync(config.db.dir)) {
+  fs.mkdirSync(config.db.dir, { recursive: true });
 }
 
-const databaseFile =
-  process.env.NODE_ENV === "test"
-    ? "taskflow.test.db"
-    : "taskflow.db";
+// ─── Open database ────────────────────────────────────────────────────────────
 
-const databasePath = path.join(
-  dataDirectory,
-  databaseFile
-);
+const db = new Database(config.db.path);
 
-const db = new Database(databasePath);
+// ─── PRAGMAs ─────────────────────────────────────────────────────────────────
 
+// WAL mode: concurrent reads + better crash safety
+db.pragma("journal_mode = WAL");
+// Enforce foreign-key constraints at the SQLite level
 db.pragma("foreign_keys = ON");
+// Synchronous mode aligned to WAL for reliability without sacrificing too much speed
+db.pragma("synchronous = NORMAL");
 
-const schemaPath = path.join(
-  process.cwd(),
-  "src",
-  "db",
-  "schema.sql"
-);
+// ─── Schema initialisation ───────────────────────────────────────────────────
 
-const schema = fs.readFileSync(
-  schemaPath,
-  "utf-8"
-);
+const schemaPath = path.join(process.cwd(), "src", "db", "schema.sql");
 
-db.exec(schema);
+try {
+  const schema = fs.readFileSync(schemaPath, "utf-8");
+  db.exec(schema);
+} catch (err) {
+  console.error("[database] Failed to apply schema:", err);
+  process.exit(1);
+}
 
 export default db;

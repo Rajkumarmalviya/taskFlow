@@ -6,12 +6,15 @@
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "start": "tsx src/server.ts",
-    "test": "vitest run"
+    "test": "NODE_ENV=test vitest run",
+    "test:watch": "NODE_ENV=test vitest",
+    "seed": "tsx src/db/seed.ts",
+    "check": "tsx src/db/check.ts"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "type": "commonjs",
+  "type": "module",
   "dependencies": {
     "better-sqlite3": "^13.0.3",
     "cors": "^2.8.6",

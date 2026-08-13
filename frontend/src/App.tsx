@@ -7,6 +7,7 @@ import TaskModal from "./components/TaskModal/TaskModal";
 
 import { useBoard } from "./hooks/useBoard";
 import { useTasks } from "./hooks/useTasks";
+import { reorderTasks } from "./services/api";
 
 import type {
   Priority,
@@ -29,6 +30,7 @@ function App() {
     updateTask,
     deleteTask,
     moveTask,
+    optimisticMoveTask,
   } = useBoard(BOARD_ID);
 
   // -----------------------------------------
@@ -215,16 +217,31 @@ function App() {
   ) {
     try {
       setBoardError(null);
-
-      await moveTask(
-        taskId,
-        columnId
-      );
+      await moveTask(taskId, columnId);
     } catch (error) {
       setBoardError(
         error instanceof Error
           ? error.message
           : "Failed to move task"
+      );
+    }
+  }
+
+  // -----------------------------------------
+  // Reorder tasks within a column
+  // -----------------------------------------
+
+  async function handleReorderTasks(
+    columnId: number,
+    orderedIds: number[]
+  ) {
+    try {
+      await reorderTasks(columnId, orderedIds);
+    } catch (error) {
+      setBoardError(
+        error instanceof Error
+          ? error.message
+          : "Failed to save order"
       );
     }
   }
@@ -300,6 +317,7 @@ function App() {
             onEdit={openEditModal}
             onDelete={handleDeleteTask}
             onMove={handleMoveTask}
+            onReorder={handleReorderTasks}
           />
         )}
 
@@ -313,23 +331,6 @@ function App() {
             }
             onClose={closeModal}
             onSave={handleSaveTask}
-          />
-        )}
-
-        {/* Task detail modal */}
-        {detailTask && (
-          <TaskDetailModal
-            task={detailTask}
-            columnName={
-              board.columns.find(
-                (col) => col.id === detailTask.column_id
-              )?.name ?? ""
-            }
-            onClose={() => setDetailTask(null)}
-            onEdit={(task) => {
-              setDetailTask(null);
-              openEditModal(task);
-            }}
           />
         )}
 

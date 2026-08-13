@@ -105,6 +105,19 @@ export function moveTask(
   );
 }
 
+export function reorderTasks(
+  columnId: number,
+  orderedIds: number[]
+) {
+  return request<void>(
+    "/tasks/reorder",
+    {
+      method: "PATCH",
+      body: JSON.stringify({ columnId, orderedIds }),
+    }
+  );
+}
+
 export function getTasksByPriority(
   boardId: number,
   priority: Priority

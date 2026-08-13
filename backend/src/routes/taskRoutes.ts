@@ -5,12 +5,18 @@ import {
   updateTaskController,
   deleteTaskController,
   moveTaskController,
-  getTasksByPriorityController
+  getTasksByPriorityController,
+  reorderTasksController,
 } from "../controllers/taskController.js";
 
 const router = Router();
 
 router.post("/", createTaskController);
+
+router.patch(
+  "/reorder",
+  reorderTasksController
+);
 
 router.patch(
   "/:taskId",

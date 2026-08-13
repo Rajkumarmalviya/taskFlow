@@ -38,7 +38,7 @@ export function getBoardById(boardId: number) {
         FROM columns
         WHERE board_id = ?
       )
-      ORDER BY created_at DESC
+      ORDER BY position ASC, created_at ASC
     `)
     .all(boardId);
 
@@ -91,15 +91,17 @@ export function createTask(data: {
         column_id,
         title,
         description,
-        priority
+        priority,
+        position
       )
-      VALUES (?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, (SELECT COALESCE(MAX(position) + 1, 0) FROM tasks WHERE column_id = ?))
     `)
     .run(
       data.columnId,
       title,
       data.description ?? null,
-      priority
+      priority,
+      data.columnId
     );
 
   return db
@@ -223,9 +225,10 @@ export function moveTask(
     UPDATE tasks
     SET
       column_id = ?,
+      position = (SELECT COALESCE(MAX(position) + 1, 0) FROM tasks WHERE column_id = ?),
       updated_at = CURRENT_TIMESTAMP
     WHERE id = ?
-  `).run(columnId, taskId);
+  `).run(columnId, columnId, taskId);
 
   return db
     .prepare(`
@@ -339,3 +342,31 @@ export function getFilteredTasks(
       search ? `%${search}%` : null
     );
 }
+
+// Bulk-update the position of tasks within a column.
+// `orderedIds` is the full ordered array of task ids for that column.
+export function reorderTasks(
+  columnId: number,
+  orderedIds: number[]
+) {
+  const column = db
+    .prepare(`SELECT id FROM columns WHERE id = ?`)
+    .get(columnId);
+
+  if (!column) throw new Error("Column not found");
+
+  const update = db.prepare(`
+    UPDATE tasks
+    SET position = ?, updated_at = CURRENT_TIMESTAMP
+    WHERE id = ? AND column_id = ?
+  `);
+
+  const tx = db.transaction(() => {
+    orderedIds.forEach((id, index) => {
+      update.run(index, id, columnId);
+    });
+  });
+
+  tx();
+}
+

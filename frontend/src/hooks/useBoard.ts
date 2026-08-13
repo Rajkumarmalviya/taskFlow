@@ -107,6 +107,66 @@ export function useBoard(boardId: number) {
     await loadBoard();
   };
 
+  // Moves a task in local state immediately, then syncs with the server.
+  // Rolls back if the API call fails.
+  const optimisticMoveTask = async (
+    taskId: number,
+    toColumnId: number
+  ) => {
+    if (!board) return;
+
+    // Find which column the task currently lives in
+    let fromColumnId: number | null = null;
+    let taskSnapshot: Task | null = null;
+
+    for (const col of board.columns) {
+      const found = col.tasks.find((t) => t.id === taskId);
+      if (found) {
+        fromColumnId = col.id;
+        taskSnapshot = found;
+        break;
+      }
+    }
+
+    if (!taskSnapshot || fromColumnId === toColumnId) return;
+
+    // Apply optimistic update
+    setBoard({
+      ...board,
+      columns: board.columns.map((col) => {
+        if (col.id === fromColumnId) {
+          return {
+            ...col,
+            tasks: col.tasks.filter((t) => t.id !== taskId),
+          };
+        }
+        if (col.id === toColumnId) {
+          return {
+            ...col,
+            tasks: [
+              ...col.tasks,
+              { ...taskSnapshot!, column_id: toColumnId },
+            ],
+          };
+        }
+        return col;
+      }),
+    });
+
+    try {
+      await moveTaskApi(taskId, toColumnId);
+      await loadBoard(); // reconcile with server truth
+    } catch (error) {
+      // Roll back on failure
+      setBoard(board);
+      setError(
+        error instanceof Error
+          ? error.message
+          : "Failed to move task"
+      );
+    }
+  };
+
   return {
     board,
     isLoading,
@@ -117,5 +177,6 @@ export function useBoard(boardId: number) {
     updateTask,
     deleteTask,
     moveTask,
+    optimisticMoveTask,
   };
 }

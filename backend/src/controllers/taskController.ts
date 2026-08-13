@@ -5,7 +5,8 @@ import {
   updateTask,
   deleteTask,
   moveTask,
-  getTasksByPriority
+  getTasksByPriority,
+  reorderTasks,
 } from "../services/taskService.js";
 
 export function createTaskController(
@@ -119,5 +120,31 @@ export function getTasksByPriorityController(
     res.status(500).json({
       error: "Failed to fetch tasks"
     });
+  }
+}
+
+export function reorderTasksController(
+  req: Request,
+  res: Response
+) {
+  try {
+    const { columnId, orderedIds } = req.body;
+
+    if (!columnId || !Array.isArray(orderedIds)) {
+      return res.status(400).json({
+        error: "columnId and orderedIds[] are required"
+      });
+    }
+
+    reorderTasks(Number(columnId), orderedIds.map(Number));
+
+    res.status(204).send();
+  } catch (error) {
+    const message =
+      error instanceof Error
+        ? error.message
+        : "Failed to reorder tasks";
+
+    res.status(400).json({ error: message });
   }
 }

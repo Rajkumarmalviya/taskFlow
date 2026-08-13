@@ -30,3 +30,14 @@ If you are developing a production application, we recommend enabling type-aware
 ```
 
 See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+
+## Notes about added dependencies
+
+This project uses `@radix-ui/react-dialog` for accessible modal dialogs. After pulling changes, install dependencies and build as usual:
+
+```bash
+npm install
+npm run build
+```
+
+If you encounter TypeScript/ESLint warnings about TypeScript versions, they are informational — the project currently uses TypeScript ~6.0.2 which may be newer than some ESLint plugins support.

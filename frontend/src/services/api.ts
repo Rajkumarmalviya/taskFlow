@@ -5,22 +5,22 @@ import type {
 } from "../types/task";
 
 const API_URL =
+  (import.meta.env.VITE_API_URL as string) ||
   "http://localhost:5000/api";
 
 async function request<T>(
   url: string,
   options?: RequestInit
 ): Promise<T> {
-  const response = await fetch(
-    `${API_URL}${url}`,
-    {
-      headers: {
-        "Content-Type": "application/json",
-        ...options?.headers
-      },
-      ...options
-    }
-  );
+  const fetchOptions: RequestInit = {
+    headers: {
+      "Content-Type": "application/json",
+      ...options?.headers,
+    },
+    ...options,
+  };
+
+  const response = await fetch(`${API_URL}${url}`, fetchOptions);
 
   if (!response.ok) {
     const data = await response.json()

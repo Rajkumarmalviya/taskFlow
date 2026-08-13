@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 
-import type { Priority } from "../types/task";
-import { useDebounce } from "../hooks/useDebounce";
+import type { Priority } from "../../types/task";
+import { useDebounce } from "../../hooks/useDebounce";
 import PriorityFilter from "./PriorityFilter";
+import { Input } from "../../ui";
 
 interface BoardToolbarProps {
   boardName: string;
@@ -54,7 +55,7 @@ function BoardToolbar({
           </h1>
 
           <p className="mt-1 text-sm text-slate-500">
-            Manage and organize your team's tasks.
+            Manage and organize your team&apos;s tasks.
           </p>
         </div>
 
@@ -81,12 +82,10 @@ function BoardToolbar({
               </svg>
             </span>
 
-            <input
-              type="text"
+            <Input
+              id="board-search"
               value={inputValue}
-              onChange={(event) =>
-                setInputValue(event.target.value)
-              }
+              onChange={(event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setInputValue(String(event.target.value))}
               placeholder="Search tasks..."
               aria-label="Search tasks"
               className="w-full rounded-lg border border-slate-300 bg-white py-2.5 pl-9 pr-8 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-slate-500 focus:ring-2 focus:ring-slate-200 sm:w-56"

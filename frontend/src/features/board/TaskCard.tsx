@@ -2,6 +2,7 @@ import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 
 import type { Task } from "../../types/task";
+import { Badge } from "../../ui";
 
 interface TaskCardProps {
   task: Task;
@@ -33,12 +34,6 @@ export default function TaskCard({
     transition,
   };
 
-  const priorityColor =
-    task.priority === "HIGH"
-      ? "bg-red-50 text-red-700"
-      : task.priority === "LOW"
-      ? "bg-emerald-50 text-emerald-700"
-      : "bg-amber-50 text-amber-700";
 
   if (isDragging) {
     return (
@@ -102,9 +97,7 @@ export default function TaskCard({
             </div>
 
             <div className="flex shrink-0 flex-col items-end gap-2">
-              <span className={`rounded-full px-2 py-1 text-xs font-medium ${priorityColor}`}>
-                {task.priority}
-              </span>
+              <Badge variant={task.priority}>{task.priority}</Badge>
 
               <time className="text-xs text-slate-400">
                 {new Date(task.created_at).toLocaleDateString()}

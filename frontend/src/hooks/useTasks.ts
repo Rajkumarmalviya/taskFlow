@@ -1,133 +1,91 @@
-import {
-  useEffect,
-  useState,
-} from "react";
+import { useEffect, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
-import {
-  getFilteredTasks,
-} from "../services/api";
+import { getFilteredTasks } from "../services/api";
+import type { Board, Priority, Task } from "../types/task";
 
-import type {
-  Board,
-  Priority,
-  Task,
-} from "../types/task";
+export function useTasks(board: Board | null) {
+  const [priority, setPriority] = useState<Priority | "ALL">("ALL");
+  const [search, setSearch] = useState("");
 
-export function useTasks(
-  board: Board | null
-) {
-  const [priority, setPriority] =
-    useState<Priority | "ALL">("ALL");
-
-  const [search, setSearch] =
-    useState("");
-
-  const [filteredTasks, setFilteredTasks] =
-    useState<Task[] | null>(null);
-
-  const [isFiltering, setIsFiltering] =
-    useState(false);
-
-  const [error, setError] =
-    useState<string | null>(null);
+  const queryClient = useQueryClient();
 
   useEffect(() => {
     setPriority("ALL");
     setSearch("");
-    setFilteredTasks(null);
   }, [board?.id]);
 
-  async function applyFilters(
-    nextPriority: Priority | "ALL",
-    nextSearch: string
-  ) {
-    if (!board) {
-      return;
-    }
+  const enabled = !!board && (priority !== "ALL" || search.trim() !== "");
 
-    if (
-      nextPriority === "ALL" &&
-      !nextSearch.trim()
-    ) {
-      setFilteredTasks(null);
-      return;
-    }
+  const queryKey = ["filteredTasks", board?.id ?? "", priority, search.trim()];
 
-    try {
-      setIsFiltering(true);
-      setError(null);
+  const query = useQuery<Task[], Error>({
+    queryKey,
+    queryFn: () =>
+      getFilteredTasks(board!.id, {
+        priority: priority === "ALL" ? undefined : priority,
+        search: search.trim() || undefined,
+      }),
+    enabled,
+    retry: 1,
+  });
 
-      const tasks =
-        await getFilteredTasks(
-          board.id,
-          {
-            priority:
-              nextPriority === "ALL"
-                ? undefined
-                : nextPriority,
+  const filteredTasks = query.data ?? null;
+  const isFiltering = query.isFetching;
+  const error = query.error ? (query.error instanceof Error ? query.error.message : String(query.error)) : null;
 
-            search:
-              nextSearch.trim() ||
-              undefined,
-          }
-        );
-
-      setFilteredTasks(tasks);
-    } catch (error) {
-      setError(
-        error instanceof Error
-          ? error.message
-          : "Failed to filter tasks"
-      );
-    } finally {
-      setIsFiltering(false);
-    }
-  }
-
-  async function changePriority(
-    value: Priority | "ALL"
-  ) {
+  async function changePriority(value: Priority | "ALL") {
     setPriority(value);
 
-    await applyFilters(
-      value,
-      search
-    );
+    if (!board) return;
+
+    if (value === "ALL" && !search.trim()) {
+      // no filter — ensure no cached filtered tasks
+      return;
+    }
+
+    await queryClient.fetchQuery({
+      queryKey: ["filteredTasks", board.id, value, search.trim()],
+      queryFn: () =>
+        getFilteredTasks(board.id, {
+          priority: value === "ALL" ? undefined : value,
+          search: search.trim() || undefined,
+        }),
+    });
   }
 
-  async function searchTasks(
-    value: string
-  ) {
+  async function searchTasks(value: string) {
     setSearch(value);
 
-    await applyFilters(
-      priority,
-      value
-    );
+    if (!board) return;
+
+    if (priority === "ALL" && !value.trim()) {
+      // no filter
+      return;
+    }
+
+    await queryClient.fetchQuery({
+      queryKey: ["filteredTasks", board.id, priority, value.trim()],
+      queryFn: () =>
+        getFilteredTasks(board.id, {
+          priority: priority === "ALL" ? undefined : priority,
+          search: value.trim() || undefined,
+        }),
+    });
   }
 
   const visibleBoard =
     !board
       ? null
       : filteredTasks === null
-        ? board
-        : {
-            ...board,
-
-            columns:
-              board.columns.map(
-                (column) => ({
-                  ...column,
-
-                  tasks:
-                    filteredTasks.filter(
-                      (task) =>
-                        task.column_id ===
-                        column.id
-                    ),
-                })
-              ),
-          };
+      ? board
+      : {
+          ...board,
+          columns: board.columns.map((column) => ({
+            ...column,
+            tasks: filteredTasks.filter((task) => task.column_id === column.id),
+          })),
+        };
 
   return {
     priority,

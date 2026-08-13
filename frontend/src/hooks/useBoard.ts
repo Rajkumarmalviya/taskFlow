@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
 import {
   createTask as createTaskApi,
@@ -8,11 +8,7 @@ import {
   updateTask as updateTaskApi,
 } from "../services/api";
 
-import type {
-  Board,
-  Priority,
-  Task,
-} from "../types/task";
+import type { Board, Priority, Task } from "../types/task";
 
 interface CreateTaskInput {
   columnId: number;
@@ -28,98 +24,135 @@ interface UpdateTaskInput {
 }
 
 export function useBoard(boardId: number) {
-  const [board, setBoard] =
-    useState<Board | null>(null);
+  const queryClient = useQueryClient();
 
-  const [isLoading, setIsLoading] =
-    useState(true);
+  const {
+    data: board,
+    isLoading,
+    error,
+    refetch,
+  } = useQuery<Board, Error>({
+    queryKey: ["board", boardId],
+    queryFn: () => getBoard(boardId),
+  });
 
-  const [error, setError] =
-    useState<string | null>(null);
+  const createTaskMutation = useMutation({
+    mutationFn: (data: CreateTaskInput) => createTaskApi(data),
+    onSuccess: (createdTask: Task) => {
+      queryClient.setQueryData<Board>(["board", boardId], (prev) => {
+        if (!prev) return prev;
 
-  const loadBoard = useCallback(
-    async () => {
-      try {
-        setError(null);
-
-        const data =
-          await getBoard(boardId);
-
-        setBoard(data);
-      } catch (error) {
-        setError(
-          error instanceof Error
-            ? error.message
-            : "Failed to load board"
-        );
-      }
+        return {
+          ...prev,
+          columns: prev.columns.map((col) =>
+            col.id === createdTask.column_id
+              ? { ...col, tasks: [...col.tasks, createdTask] }
+              : col
+          ),
+        } as Board;
+      });
     },
-    [boardId]
-  );
+  });
 
-  useEffect(() => {
-    async function initialize() {
-      setIsLoading(true);
+  const updateTaskMutation = useMutation({
+    mutationFn: ({ taskId, data }: { taskId: number; data: UpdateTaskInput }) =>
+      updateTaskApi(taskId, data),
+    onSuccess: (updatedTask: Task) => {
+      queryClient.setQueryData<Board>(["board", boardId], (prev) => {
+        if (!prev) return prev;
 
-      await loadBoard();
+        return {
+          ...prev,
+          columns: prev.columns.map((col) => ({
+            ...col,
+            tasks: col.tasks.map((t) => (t.id === updatedTask.id ? updatedTask : t)),
+          })),
+        } as Board;
+      });
+    },
+  });
 
-      setIsLoading(false);
-    }
+  const deleteTaskMutation = useMutation({
+    mutationFn: (taskId: number) => deleteTaskApi(taskId),
+    onSuccess: (_data, taskId) => {
+      queryClient.setQueryData<Board>(["board", boardId], (prev) => {
+        if (!prev) return prev;
 
-    initialize();
-  }, [loadBoard]);
+        return {
+          ...prev,
+          columns: prev.columns.map((col) => ({
+            ...col,
+            tasks: col.tasks.filter((t) => t.id !== taskId),
+          })),
+        } as Board;
+      });
+    },
+  });
 
-  const createTask = async (
-    data: CreateTaskInput
-  ) => {
-    await createTaskApi(data);
-    await loadBoard();
-  };
+  const moveTaskMutation = useMutation({
+    mutationFn: ({ taskId, columnId }: { taskId: number; columnId: number }) =>
+      moveTaskApi(taskId, columnId),
+    // optimistic update handled in onMutate
+    async onMutate({ taskId, columnId }: { taskId: number; columnId: number }) {
+      const prev = queryClient.getQueryData<Board>(["board", boardId]);
+      if (!prev) return { prev: undefined };
 
-  const updateTask = async (
-    taskId: number,
-    data: UpdateTaskInput
-  ) => {
-    await updateTaskApi(
-      taskId,
-      data
-    );
+      let fromColumnId: number | null = null;
+      let taskSnapshot: Task | null = null;
 
-    await loadBoard();
-  };
+      for (const col of prev.columns) {
+        const found = col.tasks.find((t) => t.id === taskId);
+        if (found) {
+          fromColumnId = col.id;
+          taskSnapshot = found;
+          break;
+        }
+      }
 
-  const deleteTask = async (
-    taskId: number
-  ) => {
-    await deleteTaskApi(taskId);
-    await loadBoard();
-  };
+      if (!taskSnapshot || fromColumnId === columnId) return { prev };
 
-  const moveTask = async (
-    taskId: number,
-    columnId: number
-  ) => {
-    await moveTaskApi(
-      taskId,
-      columnId
-    );
+      const next: Board = {
+        ...prev,
+        columns: prev.columns.map((col) => {
+          if (col.id === fromColumnId) return { ...col, tasks: col.tasks.filter((t) => t.id !== taskId) };
+          if (col.id === columnId) return { ...col, tasks: [...col.tasks, { ...taskSnapshot!, column_id: columnId }] };
+          return col;
+        }),
+      };
 
-    await loadBoard();
-  };
+      queryClient.setQueryData<Board>(["board", boardId], next);
 
-  // Moves a task in local state immediately, then syncs with the server.
-  // Rolls back if the API call fails.
-  const optimisticMoveTask = async (
-    taskId: number,
-    toColumnId: number
-  ) => {
-    if (!board) return;
+      return { prev };
+    },
+    onError(_err: unknown, _vars: { taskId: number; columnId: number }, context?: { prev?: Board }) {
+      if (context?.prev) queryClient.setQueryData<Board>(["board", boardId], context.prev);
+    },
+    onSuccess: (movedTask: Task) => {
+      // reconcile with server response
+      queryClient.setQueryData<Board>(["board", boardId], (prev) => {
+        if (!prev) return prev;
 
-    // Find which column the task currently lives in
+        return {
+          ...prev,
+          columns: prev.columns.map((col) => ({
+            ...col,
+            tasks: col.tasks.map((t) => (t.id === movedTask.id ? movedTask : t)),
+          })),
+        } as Board;
+      });
+    },
+  });
+
+  // Optimistic move: update cache immediately, rollback on error
+  async function optimisticMoveTask(taskId: number, toColumnId: number) {
+    const prev = queryClient.getQueryData<Board>(["board", boardId]);
+    if (!prev) return;
+
+    // find task and source column
     let fromColumnId: number | null = null;
     let taskSnapshot: Task | null = null;
 
-    for (const col of board.columns) {
+    for (const col of prev.columns) {
       const found = col.tasks.find((t) => t.id === taskId);
       if (found) {
         fromColumnId = col.id;
@@ -130,53 +163,43 @@ export function useBoard(boardId: number) {
 
     if (!taskSnapshot || fromColumnId === toColumnId) return;
 
-    // Apply optimistic update
-    setBoard({
-      ...board,
-      columns: board.columns.map((col) => {
+    const next: Board = {
+      ...prev,
+      columns: prev.columns.map((col) => {
         if (col.id === fromColumnId) {
-          return {
-            ...col,
-            tasks: col.tasks.filter((t) => t.id !== taskId),
-          };
+          return { ...col, tasks: col.tasks.filter((t) => t.id !== taskId) };
         }
+
         if (col.id === toColumnId) {
-          return {
-            ...col,
-            tasks: [
-              ...col.tasks,
-              { ...taskSnapshot!, column_id: toColumnId },
-            ],
-          };
+          return { ...col, tasks: [...col.tasks, { ...taskSnapshot, column_id: toColumnId }] };
         }
+
         return col;
       }),
-    });
+    };
+
+    queryClient.setQueryData<Board>(["board", boardId], next);
 
     try {
       await moveTaskApi(taskId, toColumnId);
-      await loadBoard(); // reconcile with server truth
-    } catch (error) {
-      // Roll back on failure
-      setBoard(board);
-      setError(
-        error instanceof Error
-          ? error.message
-          : "Failed to move task"
-      );
+      await queryClient.invalidateQueries({ queryKey: ["board", boardId] });
+    } catch (err) {
+      queryClient.setQueryData(["board", boardId], prev);
+      throw err;
     }
-  };
+  }
 
   return {
-    board,
+    board: (board ?? null) as Board | null,
     isLoading,
-    error,
-    setError,
-    loadBoard,
-    createTask,
-    updateTask,
-    deleteTask,
-    moveTask,
+    error: error ? (error instanceof Error ? error.message : String(error)) : null,
+    setError: (() => {}) as unknown as (v: string | null) => void,
+    loadBoard: refetch,
+    createTask: (data: CreateTaskInput) => createTaskMutation.mutateAsync(data),
+    updateTask: (taskId: number, data: UpdateTaskInput) =>
+      updateTaskMutation.mutateAsync({ taskId, data }),
+    deleteTask: (taskId: number) => deleteTaskMutation.mutateAsync(taskId),
+    moveTask: (taskId: number, columnId: number) => moveTaskMutation.mutateAsync({ taskId, columnId }),
     optimisticMoveTask,
   };
 }

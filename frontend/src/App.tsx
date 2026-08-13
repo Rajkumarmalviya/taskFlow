@@ -1,12 +1,10 @@
 import { useState } from "react";
 
-import Board from "./components/Board/Board";
-import BoardToolbar from "./components/BoardToolBar";
-import TaskDetailModal from "./components/TaskDetailModal/TaskDetailModal";
-import TaskModal from "./components/TaskModal/TaskModal";
+import { Board, BoardToolBar } from "./features/board";
+import { TaskModal, TaskDetailModal } from "./features/tasks";
 
-import { useBoard } from "./hooks/useBoard";
-import { useTasks } from "./hooks/useTasks";
+import { useBoard } from "./features/board";
+import { useTasks } from "./features/tasks";
 import { reorderTasks } from "./services/api";
 
 import type {
@@ -30,7 +28,6 @@ function App() {
     updateTask,
     deleteTask,
     moveTask,
-    optimisticMoveTask,
   } = useBoard(BOARD_ID);
 
   // -----------------------------------------
@@ -39,12 +36,10 @@ function App() {
 
   const {
     priority,
-    search,
     isFiltering,
     visibleBoard,
     changePriority,
     searchTasks,
-    setSearch,
     error: taskError,
   } = useTasks(board);
 
@@ -279,7 +274,7 @@ function App() {
       <div className="mx-auto max-w-7xl">
 
         {/* Toolbar */}
-        <BoardToolbar
+        <BoardToolBar
           boardName={"TaskFlow"}
           priority={priority}
           isFiltering={isFiltering}

@@ -21,7 +21,7 @@ interface BoardProps {
   onEdit: (task: Task) => void;
   onDelete: (taskId: number) => void;
   onMove: (taskId: number, toColumnId: number) => Promise<void>;
-  onReorder: (columnId: number, orderedIds: number[]) => void;
+  onReorder: (columnId: number, orderedIds: number[]) => Promise<void>;
 }
 
 export default function Board({
@@ -45,10 +45,13 @@ export default function Board({
   const originalColumnId = useRef<number | null>(null);
   // Tracks where the card currently is during drag (updated in onDragOver)
   const currentColumnId  = useRef<number | null>(null);
+  // Blocks the board-prop sync while we're awaiting onMove + onReorder
+  const isReorderingRef  = useRef(false);
 
   // Sync columns from server when board prop changes, but never mid-drag
+  // and never while a cross-column reorder is in flight
   const lastBoardRef = useRef<BoardType>(board);
-  if (board !== lastBoardRef.current && activeTask === null) {
+  if (board !== lastBoardRef.current && activeTask === null && !isReorderingRef.current) {
     lastBoardRef.current = board;
     setColumns(board.columns);
   }
@@ -110,7 +113,25 @@ export default function Board({
           const overIndex = col.tasks.findIndex((t) => t.id === Number(over.id));
           const newTasks  = [...col.tasks];
           const moved     = { ...task, column_id: toColId };
-          overIndex === -1 ? newTasks.push(moved) : newTasks.splice(overIndex, 0, moved);
+
+          if (overIndex === -1) {
+            // Hovering over the column droppable itself (empty or below all cards)
+            newTasks.push(moved);
+          } else {
+            // Determine if cursor is in upper or lower half of the hovered card
+            const overRect    = over.rect;
+            const activeRect  = active.rect.current.translated;
+            const isBelowMid  =
+              activeRect !== null &&
+              activeRect.top > overRect.top + overRect.height / 2;
+
+            newTasks.splice(
+              isBelowMid ? overIndex + 1 : overIndex,
+              0,
+              moved
+            );
+          }
+
           return { ...col, tasks: newTasks };
         }
         return col;
@@ -154,15 +175,27 @@ export default function Board({
         );
       });
     } else {
-      // Cross-column — call the API with the ORIGINAL source and final destination
-      await onMove(activeId, destColId);
+      // Cross-column — capture the visually correct column order from local state
+      // BEFORE onMove triggers a cache update that appends to the end
+      const columnsAtDrop = columns;
 
-      // Persist the order of the destination column
-      setColumns((prev) => {
-        const destCol = prev.find((c) => c.id === destColId);
-        if (destCol) onReorder(destColId, destCol.tasks.map((t) => t.id));
-        return prev;
-      });
+      // Block the lastBoardRef sync from overwriting our correct positions
+      // while the API calls are in flight
+      isReorderingRef.current = true;
+
+      try {
+        await onMove(activeId, destColId);
+
+        // Persist the destination column order with the correct drop position
+        const destCol = columnsAtDrop.find((c) => c.id === destColId);
+        if (destCol) await onReorder(destColId, destCol.tasks.map((t) => t.id));
+      } finally {
+        isReorderingRef.current = false;
+        // Now safe to apply the correct visual order
+        setColumns(columnsAtDrop);
+        // Let future board prop changes sync normally
+        lastBoardRef.current = board;
+      }
     }
   }
 
